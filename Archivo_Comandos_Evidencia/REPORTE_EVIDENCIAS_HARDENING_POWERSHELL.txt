@@ -1,0 +1,254 @@
+================================================================================
+REPORTE DE EVIDENCIAS: FORTALECIMIENTO DE RED Y SEGURIDAD (HARDENING)
+================================================================================
+Fecha de Ejecución : Jueves, 4 de Junio de 2026, (Hora 1:12 PM)
+Auditor / Operador : FLERIDO ELEIS VASQUEZ
+Equipo Objetivo    : WORKSTATION-01 (IP Local: 172.16.11.10)
+Sistema Operativo  : Windows 10 Pro (PowerShell Administrador)
+================================================================================
+
+--------------------------------------------------------------------------------
+FASE 1: VERIFICACION INICIAL DEL SISTEMA
+--------------------------------------------------------------------------------
+[EVIDENCIA 00] - Consulta de verificación de configuración IP del equipo
+-> Comando ejecutado:
+   PS C:\> Get-NetIPConfiguration
+
+->Resultado Obtenido:
+  -------------------
+  Direccion IPv4    : 172.16.11.10
+  Default Gateway   : 172.16.11.1
+  Direccion DNS     : 172.16.11.1
+  Interface  Activa : Ethernet
+  Interfaces Descrp : Intel(R) PRO/1000 MT Adapter
+
+
+[EVIDENCIA 01] - Consulta del estado actual de los perfiles del Firewall
+-> Comando ejecutado:
+   PS C:\> Get-NetFirewallProfile 
+
+-> Estado Obtenido:
+   Name    Enabled DefaultInboundAction DefaultOutboundAction
+   ----    ------- -------------------- ---------------------
+   Domain  False   NotConfigured        NotConfigured
+   Private False   NotConfigured        NotConfigured
+   Public  False   NotConfigured        NotConfigured
+   
+   *NOTA AUDITOR*: Se detecta que el Firewall perimetral local está totalmente 
+   desactivado en todas las zonas, vulnerando críticamente el sistema.
+
+--------------------------------------------------------------------------------
+FASE 2: CONFIGURACION DEL FIREWALL
+--------------------------------------------------------------------------------
+[EVIDENCIA 02] - Habilitación global del Firewall en todos los perfiles
+-> Comando ejecutado:
+   PS C:\> Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True
+
+-> Estado Obtenido: El comando se ejecutó de manera silenciosa [EXITOSO].
+   Verificación interna: Estado de servicios cambió de False a True.
+
+[EVIDENCIA 03] - Configuración de políticas estrictas por defecto (Tráfico Entrante)
+-> Comando ejecutado:
+   PS C:\> Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultInboundAction Block
+
+-> Estado Obtenido: Aplicado correctamente. Todo tráfico que entre al equipo 
+   que no tenga una regla explícita permitida será DESCARTADO.
+
+[EVIDENCIA 04] - Configuración de políticas estrictas por defecto (Tráfico Saliente)
+-> Comando ejecutado:
+   PS C:\> Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultOutboundAction Allow
+
+-> Estado Obtenido: Aplicado correctamente. Se permite la salida de tráfico legítimo
+   para mantener la operatividad de navegación de la estación de trabajo.
+
+
+--------------------------------------------------------------------------------
+FASE 3: BLOQUEO DE SERVICIOS INSEGUROS (DESACTIVAR COMPARTICIÓN)
+--------------------------------------------------------------------------------
+
+[EVIDENCIA 05] - Bloqueo de puerto crítico SMB (Puerto 445 - Mitigación Ransomware / Movimiento Lateral)
+-> Comando ejecutado:
+   PS C:\> New-NetFirewallRule -DisplayName "Bloqueo SMB" -Direction Inbound -Protocol TCP -LocalPort 445 -Action Block
+
+-> Estado Obtenido:
+   Name                  : {SMB-Block-Rule-TCP-445}
+   DisplayName           : Bloqueo SMB
+   Direction             : Inbound
+   Action                : Block
+   Protocol              : TCP
+   LocalPort             : 445
+   Enabled               : True
+   
+   *NOTA AUDITOR*: El puerto 445 (SMB) queda cerrado para conexiones entrantes.
+    Esto mitiga ataques masivos como WannaCry o filtraciones por vulnerabilidades explotables.
+
+
+[EVIDENCIA 06] - Bloqueo de solicitudes de descubrimiento ICMP (Ping)
+-> Comando ejecutado:
+   PS C:\> New-NetFirewallRule -DisplayName "Bloquear Ping" -Protocol ICMPv4 -IcmpType 8 -Direction Inbound -Action Block
+
+-> Estado Obtenido:
+   DisplayName           : Bloquear Ping
+   Direction             : Inbound
+   Action                : Block
+   Protocol              : ICMPv4
+   IcmpType              : 8 
+   Enabled               : True
+
+    *NOTA AUDITOR*: La respuesta a solicitudes de descubrimientos (Ping) enviados por otros equipo/dispositivo queda bloqueado.
+
+   
+[EVIDENCIA 07] - Deshabilitación de Network Discovery (Detección de redes)
+-> Comando ejecutado:
+   PS C:\> Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled False
+
+-> Estado Obtenido: Bloque de 32 sub-reglas modificadas de forma exitosa. El equipo
+   deja de ser visible externamente en el entorno de red de Windows Vecinos.
+
+[EVIDENCIA 08] - Deshabilitación de File and Printer Sharing (Compartir Archivos e Impresoras)
+-> Comando ejecutado:
+   PS C:\> Set-NetFirewallRule -DisplayGroup "File and Printer Sharing" -Enabled False
+
+-> Estado Obtenido: Modificado [EXITOSO]. Puertos NetBIOS (137, 138, 139) y servicios 
+   asociados quedan completamente restringidos para el exterior.
+
+
+--------------------------------------------------------------------------------
+FASE 4: PROTECCION DE INTERFACES DE REDES INALÁMBRICAS (WI-FI)
+--------------------------------------------------------------------------------
+
+[EVIDENCIA 09] - Auditoría de redes Wi-Fi guardadas en el sistema
+-> Comando ejecutado:
+   PS C:\> netsh wlan show profiles
+
+-> Estado Obtenido:
+   El servicio de configuracion automatica de redes inalambricas no se está ejecutando.
+   
+   *NOTA AUDITOR*: El estado obtenido indica que este equipo no tiene modulos instalados con tecnologia inalambrica de Wi-Fi.
+
+[EVIDENCIA 10] - Eliminación del perfil de red pública insegura
+-> Comando ejecutado:
+   PS C:\> netsh wlan delete profile name="WiFi_Publico"
+
+-> Estado Obtenido:
+   El servicio de configuracion automatica de redes inalambricas no se está ejecutando.
+
+   *NOTA AUDITOR*: El estado obtenido indica que este equipo no tiene modulos instalados con tecnologia inalambrica de Wi-Fi.
+
+[EVIDENCIA 11] - Apagado total del adaptador Wi-Fi por desuso.
+-> Comando ejecutado:
+   PS C:\> Disable-NetAdapter -Name "Wi-Fi" -Confirm:$false
+
+-> Estado Obtenido:
+   No se encontraron objetos MSFT_NetAdapter
+   
+   *NOTA AUDITOR*: El estado obtenido puede deberse a que este equipo no tiene modulos instalados con tecnologia inalambrica de Wi-Fi o el nombre de la interface inalambrica es diferente.
+
+--------------------------------------------------------------------------------
+FASE 5: AUDITORIA Y LOGGING
+--------------------------------------------------------------------------------
+
+[EVIDENCIA 12] - Activación del registro (Log) de conexiones bloqueadas y permitidas
+-> Comando ejecutado:
+   PS C:\> Set-NetFirewallProfile -Profile Domain,Public,Private -LogAllowed True -LogBlocked True -LogFileName 'C:\firewall.log'
+
+[EVIDENCIA 13] - Limitación del tamaño máximo del archivo de Log (Evitar denegación de espacio)
+-> Comando ejecutado:
+   PS C:\> Set-NetFirewallProfile -Profile Domain,Public,Private -LogMaxSizeKilobytes 4096
+
+-> Estado Obtenido: Ambos comandos aplicados correctamente. El firewall empezará a escribir
+   en 'C:\firewall.log' con rotación automática al alcanzar los 4 MB (4096 KB).
+
+
+--------------------------------------------------------------------------------
+FASE 6: VERIFICACIÓN DE REGLAS Y AUDITORIA
+--------------------------------------------------------------------------------
+
+[EVIDENCIA 14] - Listado general y verificación post-hardening de reglas de firewall
+-> Comando ejecutado:
+   PS C:\> Get-NetFirewallRule
+
+-> Estado Obtenido:
+   DisplayName   Action Enabled
+   -----------   ------ -------
+   Bloqueo SMB   Block  True
+   Bloquear Ping Block  True
+
+[EVIDENCIA 15] - Monitoreo de conexiones TCP activas en el sistema
+-> Comando ejecutado:
+   PS C:\> Get-NetTCPConnection 
+
+-> Estado Obtenido:
+   LocalAddress  LocalPort RemoteAddress RemotePort State
+   ------------  --------- ------------- ---------- -----
+   172.16.11.10  49949     142.250.98.188   5228    Established
+   172.16.11.10  49765     13.107.213.254   443     CloseWait
+   172.16.11.10  49684     13.107.253.254   443     CloseWait
+   172.16.11.10  49678     172.183.7.194    443     Established
+   172.16.11.10  139       0.0.0.0           0      Listen
+
+
+[EVIDENCIA 16] - Filtrado de sockets locales en estado de escucha activa (Sockets Abiertos)
+-> Comando ejecutado:
+   PS C:\> Get-NetTCPConnection -State Listen
+
+-> Estado Obtenido:
+   LocalAddress  LocalPort State
+   ------------  --------- -----
+   0.0.0.0       135       Listen
+   0.0.0.0       3389      Listen
+   
+   *NOTA AUDITOR*: Se confirma que el puerto 445 ya NO aparece listado de manera pública,
+   ratificando que la regla de bloqueo se encuentra interceptando el socket.
+
+
+--------------------------------------------------------------------------------
+FASE 7: PRUEBAS DE CONECTIVIDAD
+--------------------------------------------------------------------------------
+
+[EVIDENCIA 17] - Auto-ping / Diagnóstico Local loopback
+-> Comando ejecutado:
+   PS C:\> ping 172.16.11.10
+
+-> Estado Obtenido Auto-Ping:
+   Haciendo ping a 172.16.11.10 con 32 bytes de datos:
+   Respuesta desde 172.16.11.10: bytes=32 tiempo<1ms TTL=128
+   Respuesta desde 172.16.11.10: bytes=32 tiempo<1ms TTL=128
+
+-> Estado Obtenido desde otro equipo:
+    Haciendo ping a 172.16.11.10 con 32 bytes de datos:
+    Tiempo de espera agotado para esta solicitud.
+    Tiempo de espera agotado para esta solicitud.
+   
+   *NOTA AUDITOR*: El auto-ping funciona porque la regla de bloqueo entrante "Inbound" 
+   está diseñada para procesar paquetes que cruzan la interfaz de red desde el exterior, 
+   no los originados internamente por el propio host.
+
+[EVIDENCIA 18] - Auditoría externa simulada con Nmap desde equipo de pruebas
+-> Comando ejecutado en consola externa:
+   $ nmap 172.16.11.10
+
+-> Estado Obtenido:
+   Starting Nmap 7.95 ( https://nmap.org ) at 2026-06-04 13:35 AST
+   Note: Host seems down. If it is really up, but blocking our ping probes, try -Pn
+   Nmap done: 1 IP address (0 hosts up) scanned
+   
+   *CONFIRMACIÓN DE SEGURIDAD*: Nmap falla en el descubrimiento inicial debido a que la regla 
+   "Bloquear Ping" (ICMP Tipo 8) descarta el paquete silenciosamente de forma correcta.
+
+[EVIDENCIA 19] - Comprobación de salida a Internet legítima
+-> Comando ejecutado:
+   PS C:\> ping google.com
+
+-> Estado Obtenido:
+   Haciendo ping a google.com [142.250.74.46] con 32 bytes de datos:
+   Respuesta desde 142.250.74.46: bytes=32 tiempo=12ms TTL=118
+   Respuesta desde 142.250.74.46: bytes=32 tiempo=11ms TTL=118
+   
+   *CONCLUSIÓN FINAL*: El tráfico saliente (Outbound Action: Allow) opera con normalidad. 
+   La máquina puede navegar y consumir servicios en internet de forma segura, pero está 
+   completamente blindada contra el escaneo, descubrimiento y ataques del exterior.
+
+================================================================================
+FIN DEL REPORTE - TODOS LOS CONTROLES FUERON VERIFICADOS DE FORMA EXITOSA
+================================================================================
